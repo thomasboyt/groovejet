@@ -13,7 +13,7 @@ const server = http.createServer();
 
 const app = express();
 app.use(express.json());
-app.use(cors());  // TODO: only whitelist app server
+app.use(cors()); // TODO: only whitelist app server
 
 function generateCode(length: number): string {
   // https://stackoverflow.com/a/19964557

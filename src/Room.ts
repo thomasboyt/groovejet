@@ -75,13 +75,13 @@ export default class Room {
           offerSignal: msg.data.offerSignal,
           clientId,
         },
-      })
+      });
     }
   }
 
   handleHostMessage(msg: any) {
     if (msg.type === 'hostSignal') {
-      const {answerSignal, clientId} = msg.data;
+      const { answerSignal, clientId } = msg.data;
 
       this.sendToClient(clientId, {
         type: 'hostSignal',
