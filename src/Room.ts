@@ -12,6 +12,10 @@ export default class Room {
       this.handleHostMessage(msg);
     });
 
+    const interval = setInterval(() => {
+      socket.ping();
+    }, 10000);
+
     socket.on('close', () => {
       // TODO
       //
@@ -24,6 +28,7 @@ export default class Room {
       // connection to the Groovejet server)
 
       this.hostWebSocket = undefined;
+      clearInterval(interval);
     });
 
     this.hostWebSocket = socket;
@@ -31,6 +36,10 @@ export default class Room {
 
   registerClient(socket: ws) {
     const clientId = uuidv4();
+
+    const interval = setInterval(() => {
+      socket.ping();
+    }, 10000);
 
     socket.on('message', (strMsg: string) => {
       const msg = JSON.parse(strMsg);
@@ -41,6 +50,7 @@ export default class Room {
       // TODO
       // Allow reconnections and stuff
       this.clientWebSockets.delete(clientId);
+      clearInterval(interval);
     });
 
     this.clientWebSockets.set(clientId, socket);
