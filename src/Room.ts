@@ -1,11 +1,18 @@
 import * as ws from 'ws';
-import * as uuidv4 from 'uuid/v4';
+import {
+  ClientMessage,
+  SGuestSignalMessage,
+  SHostSignalMessage,
+  ServerMessage,
+} from './messages';
 
 export default class Room {
-  hostWebSocket?: ws;
-  clientWebSockets = new Map<string, ws>();
-  clientIdCounter = 0;
+  private hostWebSocket?: ws;
+  private guestWebSockets = new Map<string, ws>();
 
+  /**
+   * Register a websocket as the current host.
+   */
   registerHost(socket: ws) {
     socket.on('message', (strMsg: string) => {
       const msg = JSON.parse(strMsg);
@@ -19,13 +26,14 @@ export default class Room {
     socket.on('close', () => {
       // TODO
       //
-      // Host migration maybe goes here?
-      // Promote a client to host, send message to client indicating that congratulations
-      // they are now host, somehow facilitate new host reconnecting to other clients
+      // Host migration maybe goes here? Promote a guest to host, send message
+      // to guest indicating that congratulations they are now host, and
+      // messages to clients indicating there is a new host and they need to
+      // reconnect.
       //
-      // Until then, maybe just allow host to reconnect, somehow? Some kinda unique host ID?
-      // (in this case we're assuming host keeps connections to other peers, and only loses
-      // connection to the Groovejet server)
+      // Until then, maybe just allow host to reconnect, somehow? Some kinda
+      // unique host ID? (in this case we're assuming host keeps connections to
+      // other peers, and only loses connection to the Groovejet server)
 
       this.hostWebSocket = undefined;
       clearInterval(interval);
@@ -34,31 +42,31 @@ export default class Room {
     this.hostWebSocket = socket;
   }
 
-  registerClient(socket: ws) {
-    const clientId = uuidv4();
-
+  /**
+   * Register a guest websocket.
+   */
+  registerGuest(socket: ws, clientId: string) {
     const interval = setInterval(() => {
       socket.ping();
     }, 10000);
 
     socket.on('message', (strMsg: string) => {
       const msg = JSON.parse(strMsg);
-      this.handleClientMessage(clientId, msg);
+      this.handleGuestMessage(clientId, msg);
     });
 
     socket.on('close', () => {
       // TODO
       // Allow reconnections and stuff
-      this.clientWebSockets.delete(clientId);
+      this.guestWebSockets.delete(clientId);
       clearInterval(interval);
     });
 
-    this.clientWebSockets.set(clientId, socket);
-    this.clientIdCounter += 1;
+    this.guestWebSockets.set(clientId, socket);
   }
 
-  sendToClient(clientId: string, data: {}) {
-    const socket = this.clientWebSockets.get(clientId);
+  private sendToGuest(clientId: string, data: ServerMessage) {
+    const socket = this.guestWebSockets.get(clientId);
 
     if (!socket) {
       // TODO: properly handle disconnecting clients I guess
@@ -68,7 +76,7 @@ export default class Room {
     socket.send(JSON.stringify(data));
   }
 
-  sendToHost(data: {}) {
+  private sendToHost(data: ServerMessage) {
     if (!this.hostWebSocket) {
       // TODO: ???
       return;
@@ -77,28 +85,31 @@ export default class Room {
     this.hostWebSocket.send(JSON.stringify(data));
   }
 
-  handleClientMessage(clientId: string, msg: any) {
-    if (msg.type === 'clientSignal') {
-      this.sendToHost({
-        type: 'clientConnection',
+  private handleGuestMessage(clientId: string, msg: ClientMessage) {
+    if (msg.type === 'guestOfferSignal') {
+      const msgToHost: SGuestSignalMessage = {
+        type: 'guestOfferSignal',
         data: {
           offerSignal: msg.data.offerSignal,
           clientId,
         },
-      });
+      };
+      this.sendToHost(msgToHost);
     }
   }
 
-  handleHostMessage(msg: any) {
-    if (msg.type === 'hostSignal') {
+  private handleHostMessage(msg: ClientMessage) {
+    if (msg.type === 'hostAnswerSignal') {
       const { answerSignal, clientId } = msg.data;
 
-      this.sendToClient(clientId, {
-        type: 'hostSignal',
+      const msgToGuest: SHostSignalMessage = {
+        type: 'hostAnswerSignal',
         data: {
           answerSignal,
         },
-      });
+      };
+
+      this.sendToGuest(clientId, msgToGuest);
     }
   }
 }

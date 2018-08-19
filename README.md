@@ -18,6 +18,16 @@ a webrtc lobby server for connecting players to each other
 * [ ] allow host to reconnect (assuming p2p session still active/host did not lose state)
 * [ ] delete room when host disconnects + timeout
 
+### terminology
+
+- *server* - the groovejet server
+- *client* - any connection to the groovejet server
+- *host* - the host of a given room
+- *guest* - p2p clients of a room's host
+- *client ID* - UUID generated for each client. can be used by games to identify players. eventually will be made persistent in some way to allow client reconnections
+
+within pearl, "client" is generally used instead of "guest," since there's less ambiguity to the term (as connections within pearl are referred to as _peer_ connections, not client connections).
+
 ### usage
 
 host requests a room code with
@@ -32,7 +42,7 @@ then initiates a websocket connection to
 /?host=true&code=<code>
 ```
 
-client opens websocket connection to
+guest opens websocket connection to
 
 ```
 /?code=<code>
@@ -42,7 +52,7 @@ then sends a signal offer
 
 ```js
 {
-  type: 'clientSignal',
+  type: 'guestOfferSignal',
   data: {
     offerSignal: '<offer signal>',
   },
@@ -53,7 +63,7 @@ host receives
 
 ```js
 {
-  type: 'clientConnection',
+  type: 'guestOfferSignal',
   data: {
     offerSignal: '<offer signal>',
     clientId: '<uuid>',
@@ -65,7 +75,7 @@ and replies with an answer signal and the received client ID
 
 ```js
 {
-  type: 'hostSignal',
+  type: 'hostAnswerSignal',
   data: {
     answerSignal: '<answer signal>',
     clientId: '<uuid>',
@@ -73,11 +83,11 @@ and replies with an answer signal and the received client ID
 }
 ```
 
-client receives
+guest receives
 
 ```js
 {
-  type: 'hostSignal',
+  type: 'hostAnswerSignal',
   data: {
     answerSignal: '<answer signal>',
   },
