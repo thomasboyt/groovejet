@@ -16,7 +16,19 @@ export interface NoRoomFoundErrorMessage extends BaseErrorMessage {
   errorType: 'noRoomFound';
 }
 
-export type ErrorMessage = MissingRoomCodeErrorMessage;
+export interface HostDisconnectedErrorMessage extends BaseErrorMessage {
+  errorType: 'hostDisconnected';
+}
+
+export interface HostAlreadyExistsMessage extends BaseErrorMessage {
+  errorType: 'hostAlreadyExists';
+}
+
+export type ErrorMessage =
+  | HostAlreadyExistsMessage
+  | MissingRoomCodeErrorMessage
+  | NoRoomFoundErrorMessage
+  | HostDisconnectedErrorMessage;
 
 /**
  * Message sent by server on initial connection with a unique client ID for the
@@ -53,7 +65,10 @@ export interface SHostSignalMessage {
 /**
  * Messages sent by the Groovejet server.
  */
-export type ServerMessage = SGuestSignalMessage | SHostSignalMessage;
+export type ServerMessage =
+  | SIdentityMessage
+  | SGuestSignalMessage
+  | SHostSignalMessage;
 
 /**
  * Message sent from a connecting guest to the host with an offer signal.

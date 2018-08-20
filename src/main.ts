@@ -3,14 +3,18 @@ import * as ws from 'ws';
 import * as http from 'http';
 import * as cors from 'cors';
 import * as url from 'url';
-import * as uuidv4 from 'uuid/v4';
 
 import Room from './Room';
 import {
   MissingRoomCodeErrorMessage,
   NoRoomFoundErrorMessage,
   SIdentityMessage,
+  ErrorMessage,
+  HostDisconnectedErrorMessage,
+  ServerMessage,
+  ClientMessage,
 } from './messages';
+import ClientSocket from './ClientSocket';
 
 // magical singleton state here~
 const rooms = new Map<string, Room>();
@@ -33,13 +37,29 @@ app.post('/rooms', (req, res) => {
   // create game code
   // (TODO: check uniqueness lol)
   const code = generateCode(5);
-  rooms.set(code, new Room());
+  rooms.set(code, new Room(code));
   res.json({ code });
 });
 
 const wss = new ws.Server({ server });
 
 wss.on('connection', (ws, req) => {
+  const socket = new ClientSocket(ws);
+
+  const msg: SIdentityMessage = {
+    type: 'identity',
+    data: {
+      clientId: socket.clientId,
+    },
+  };
+
+  socket.send(msg);
+
+  const fatalError = (err: ErrorMessage) => {
+    socket.send(err);
+    socket.close();
+  };
+
   const query = url.parse(req.url!, true).query;
 
   if (typeof query.code !== 'string') {
@@ -49,36 +69,25 @@ wss.on('connection', (ws, req) => {
       errorMessage: 'Missing room code in query string',
     };
 
-    ws.send(JSON.stringify(msg));
-    return ws.close();
-  } else if (!rooms.has(query.code)) {
+    return fatalError(msg);
+  }
+
+  const room = rooms.get(query.code);
+
+  if (!room) {
     const msg: NoRoomFoundErrorMessage = {
       type: 'error',
       errorType: 'noRoomFound',
       errorMessage: `No room exists with code ${query.code}`,
     };
 
-    ws.send(JSON.stringify(msg));
-    return ws.close();
+    return fatalError(msg);
   }
 
-  const clientId = uuidv4();
-
-  const msg: SIdentityMessage = {
-    type: 'identity',
-    data: {
-      clientId,
-    },
-  };
-
-  ws.send(JSON.stringify(msg));
-
-  const room = rooms.get(query.code)!;
-
   if (typeof query.host === 'string') {
-    room.registerHost(ws);
+    room.registerHost(socket);
   } else {
-    room.registerGuest(ws, clientId);
+    room.registerGuest(socket);
   }
 });
 

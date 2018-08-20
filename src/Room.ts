@@ -4,26 +4,43 @@ import {
   SGuestSignalMessage,
   SHostSignalMessage,
   ServerMessage,
+  HostDisconnectedErrorMessage,
+  HostAlreadyExistsMessage,
 } from './messages';
+import ClientSocket from './ClientSocket';
 
 export default class Room {
-  private hostWebSocket?: ws;
-  private guestWebSockets = new Map<string, ws>();
+  roomCode: string;
+  private hostSocket?: ClientSocket;
+  private guestSockets = new Map<string, ClientSocket>();
+
+  constructor(roomCode: string) {
+    this.roomCode = roomCode;
+  }
 
   /**
    * Register a websocket as the current host.
    */
-  registerHost(socket: ws) {
-    socket.on('message', (strMsg: string) => {
-      const msg = JSON.parse(strMsg);
-      this.handleHostMessage(msg);
-    });
+  registerHost(socket: ClientSocket) {
+    if (this.hostSocket) {
+      const errorMessage = `You're trying to connect as a host, but the room ${
+        this.roomCode
+      } already has a host`;
 
-    const interval = setInterval(() => {
-      socket.ping();
-    }, 10000);
+      const msg: HostAlreadyExistsMessage = {
+        type: 'error',
+        errorType: 'hostAlreadyExists',
+        errorMessage,
+      };
 
-    socket.on('close', () => {
+      socket.send(msg);
+      socket.close();
+      return;
+    }
+
+    socket.onMessage.add((msg) => this.handleHostMessage(msg));
+
+    socket.onClose.add(() => {
       // TODO
       //
       // Host migration maybe goes here? Promote a guest to host, send message
@@ -35,54 +52,57 @@ export default class Room {
       // unique host ID? (in this case we're assuming host keeps connections to
       // other peers, and only loses connection to the Groovejet server)
 
-      this.hostWebSocket = undefined;
-      clearInterval(interval);
+      this.hostSocket = undefined;
     });
 
-    this.hostWebSocket = socket;
+    this.hostSocket = socket;
   }
 
   /**
    * Register a guest websocket.
    */
-  registerGuest(socket: ws, clientId: string) {
-    const interval = setInterval(() => {
-      socket.ping();
-    }, 10000);
+  registerGuest(socket: ClientSocket) {
+    if (!this.hostSocket) {
+      const msg: HostDisconnectedErrorMessage = {
+        type: 'error',
+        errorType: 'hostDisconnected',
+        errorMessage: `The host for room ${this.roomCode} has disconnected`,
+      };
 
-    socket.on('message', (strMsg: string) => {
-      const msg = JSON.parse(strMsg);
-      this.handleGuestMessage(clientId, msg);
+      socket.send(msg);
+      socket.close();
+      return;
+    }
+
+    socket.onMessage.add((msg) => {
+      this.handleGuestMessage(socket.clientId, msg);
     });
 
-    socket.on('close', () => {
-      // TODO
-      // Allow reconnections and stuff
-      this.guestWebSockets.delete(clientId);
-      clearInterval(interval);
+    socket.onClose.add(() => {
+      this.guestSockets.delete(socket.clientId);
     });
 
-    this.guestWebSockets.set(clientId, socket);
+    this.guestSockets.set(socket.clientId, socket);
   }
 
   private sendToGuest(clientId: string, data: ServerMessage) {
-    const socket = this.guestWebSockets.get(clientId);
+    const socket = this.guestSockets.get(clientId);
 
     if (!socket) {
       // TODO: properly handle disconnecting clients I guess
       return;
     }
 
-    socket.send(JSON.stringify(data));
+    socket.send(data);
   }
 
   private sendToHost(data: ServerMessage) {
-    if (!this.hostWebSocket) {
+    if (!this.hostSocket) {
       // TODO: ???
       return;
     }
 
-    this.hostWebSocket.send(JSON.stringify(data));
+    this.hostSocket.send(data);
   }
 
   private handleGuestMessage(clientId: string, msg: ClientMessage) {
