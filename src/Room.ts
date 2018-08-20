@@ -1,4 +1,4 @@
-import * as ws from 'ws';
+import ClientSocket from './ClientSocket';
 import {
   ClientMessage,
   SGuestSignalMessage,
@@ -7,7 +7,6 @@ import {
   HostDisconnectedErrorMessage,
   HostAlreadyExistsMessage,
 } from './messages';
-import ClientSocket from './ClientSocket';
 
 export default class Room {
   roomCode: string;

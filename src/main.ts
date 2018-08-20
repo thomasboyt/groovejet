@@ -10,9 +10,6 @@ import {
   NoRoomFoundErrorMessage,
   SIdentityMessage,
   ErrorMessage,
-  HostDisconnectedErrorMessage,
-  ServerMessage,
-  ClientMessage,
 } from './messages';
 import ClientSocket from './ClientSocket';
 
