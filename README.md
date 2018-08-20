@@ -5,7 +5,7 @@ a webrtc lobby server for connecting players to each other
 ### overall goals
 
 * [x] allow clients to establish p2p connections to a host
-* [ ] provide host and clients unique identifying tokens allowing reconnections between peers or to the lobby server to happen without losing your identity
+* [x] provide host and clients unique identifying tokens allowing reconnections between peers or to the lobby server to happen without losing your identity
 * [ ] allow the host to be migrated to a client
 * [ ] save snapshots of game state to lobby server so game can be resumed even if everyone crashes out/loses connection
 
@@ -28,7 +28,7 @@ a webrtc lobby server for connecting players to each other
 
 within pearl, "client" is generally used instead of "guest," since there's less ambiguity to the term (as connections within pearl are referred to as _peer_ connections, not client connections).
 
-### usage
+### current usage
 
 host requests a room code with
 
@@ -93,3 +93,74 @@ guest receives
   },
 }
 ```
+
+#### errors
+
+* `missingRoomCode` - no room code passed in the query string.
+* `noRoomFound` - no room found with the passed room code.
+* `hostDisconnected` - sent to a guest when they attempt to join a room that has no host connected.
+* `hostAlreadyExists` - a client tried to connect to a room as a host, but the room already has a host.
+
+### future ideal usage
+
+client connects to the websocket and receives an identity message:
+
+```js
+{
+  type: 'identity',
+  data: {
+    clientId: 'xxxx-xxxx-xxxx'
+  }
+}
+```
+
+client attempts to connect to a room or create a room:
+
+```js
+{
+  type: 'joinRoom',
+  data: {
+    roomCode: 'abcde'
+  }
+}
+
+// or
+
+{
+  type: 'createRoom'
+}
+```
+
+for joins, server sends back a response indicating their role in the room (this allows for host reconnection):
+
+```js
+{
+  type:  'roomJoined',
+  data: {
+    // sent so client can determine whether to go into host or guest mode
+    clientIsHost: false,
+    // sent so client can perform special reconnection logic instead of normal
+    // connection logic
+    reconnected: false,
+  }
+}
+```
+
+for room creation, the server just sends back a response with the new room code:
+
+```js
+{
+  type: 'roomCreated',
+  data: {
+    roomCode: 'abcde'
+  }
+}
+```
+
+if the client is the room host, their socket will be registered as a host and they'll receive incoming guest offers. if they're a guest, the client should send an offer immediately, as described above.
+
+#### errors
+
+* `missingRoomCode` - no room code passed in the query string.
+* `noRoomFound` - no room found with the passed room code.
+* `hostDisconnected` - sent to a guest when they attempt to join a room that has no host connected.
