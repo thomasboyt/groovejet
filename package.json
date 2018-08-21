@@ -4,12 +4,16 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "start": "ts-node src/main.ts"
+    "start": "ts-node src/main.ts",
+    "test": "jest"
   },
   "author": "Thomas Boyt <me@thomasboyt.com>",
   "license": "MIT",
   "devDependencies": {
-    "prettier": "^1.13.3"
+    "@types/jest": "^23.3.1",
+    "jest": "^23.5.0",
+    "prettier": "^1.13.3",
+    "ts-jest": "^23.1.4"
   },
   "dependencies": {
     "@types/cors": "^2.8.4",

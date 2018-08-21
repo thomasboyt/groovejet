@@ -20,12 +20,7 @@ export interface HostDisconnectedErrorMessage extends BaseErrorMessage {
   errorType: 'hostDisconnected';
 }
 
-export interface HostAlreadyExistsMessage extends BaseErrorMessage {
-  errorType: 'hostAlreadyExists';
-}
-
 export type ErrorMessage =
-  | HostAlreadyExistsMessage
   | MissingRoomCodeErrorMessage
   | NoRoomFoundErrorMessage
   | HostDisconnectedErrorMessage;
@@ -63,12 +58,35 @@ export interface SHostSignalMessage {
 }
 
 /**
+ * Message sent from the server to a host when the room is created.
+ */
+export interface SCreatedRoomMessage {
+  type: 'createdRoom';
+  data: {
+    roomCode: string;
+  };
+}
+
+/**
+ * Message sent from the server to a guest when they have joined a room and are
+ * ready to signal with the host.
+ */
+export interface SJoinedRoomMessage {
+  type: 'joinedRoom';
+  data: {
+    isHost: boolean;
+  };
+}
+
+/**
  * Messages sent by the Groovejet server.
  */
 export type ServerMessage =
   | SIdentityMessage
   | SGuestSignalMessage
-  | SHostSignalMessage;
+  | SHostSignalMessage
+  | SCreatedRoomMessage
+  | SJoinedRoomMessage;
 
 /**
  * Message sent from a connecting guest to the host with an offer signal.
@@ -91,7 +109,23 @@ export interface CHostSignalMessage {
   };
 }
 
+export interface CJoinRoomMessage {
+  type: 'joinRoom';
+  data: {
+    roomCode: string;
+    canHost: boolean;
+  };
+}
+
+export interface CCreateRoomMessage {
+  type: 'createRoom';
+}
+
 /**
  * Messages received by the Groovejet server.
  */
-export type ClientMessage = CGuestSignalMessage | CHostSignalMessage;
+export type ClientMessage =
+  | CGuestSignalMessage
+  | CHostSignalMessage
+  | CJoinRoomMessage
+  | CCreateRoomMessage;

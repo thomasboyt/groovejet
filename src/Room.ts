@@ -1,17 +1,15 @@
-import ClientSocket from './ClientSocket';
+import { IClientSocket } from './ClientSocket';
 import {
   ClientMessage,
+  ServerMessage,
   SGuestSignalMessage,
   SHostSignalMessage,
-  ServerMessage,
-  HostDisconnectedErrorMessage,
-  HostAlreadyExistsMessage,
 } from './messages';
 
 export default class Room {
   roomCode: string;
-  private hostSocket?: ClientSocket;
-  private guestSockets = new Map<string, ClientSocket>();
+  private hostSocket?: IClientSocket;
+  private guestSockets = new Map<string, IClientSocket>();
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -20,25 +18,7 @@ export default class Room {
   /**
    * Register a websocket as the current host.
    */
-  registerHost(socket: ClientSocket) {
-    if (this.hostSocket) {
-      const errorMessage = `You're trying to connect as a host, but the room ${
-        this.roomCode
-      } already has a host`;
-
-      const msg: HostAlreadyExistsMessage = {
-        type: 'error',
-        errorType: 'hostAlreadyExists',
-        errorMessage,
-      };
-
-      socket.send(msg);
-      socket.close();
-      return;
-    }
-
-    socket.onMessage.add((msg) => this.handleHostMessage(msg));
-
+  registerHost(socket: IClientSocket) {
     socket.onClose.add(() => {
       // TODO
       //
@@ -60,28 +40,48 @@ export default class Room {
   /**
    * Register a guest websocket.
    */
-  registerGuest(socket: ClientSocket) {
-    if (!this.hostSocket) {
-      const msg: HostDisconnectedErrorMessage = {
-        type: 'error',
-        errorType: 'hostDisconnected',
-        errorMessage: `The host for room ${this.roomCode} has disconnected`,
-      };
-
-      socket.send(msg);
-      socket.close();
-      return;
-    }
-
-    socket.onMessage.add((msg) => {
-      this.handleGuestMessage(socket.clientId, msg);
-    });
-
+  registerGuest(socket: IClientSocket) {
     socket.onClose.add(() => {
       this.guestSockets.delete(socket.clientId);
     });
 
     this.guestSockets.set(socket.clientId, socket);
+  }
+
+  get hasHost(): boolean {
+    return !!this.hostSocket;
+  }
+
+  handleSignalingMessage(clientId: string, msg: ClientMessage) {
+    if (!this.hostSocket) {
+      return;
+    }
+
+    if (clientId === this.hostSocket.clientId) {
+      if (msg.type === 'hostAnswerSignal') {
+        const { answerSignal, clientId } = msg.data;
+
+        const msgToGuest: SHostSignalMessage = {
+          type: 'hostAnswerSignal',
+          data: {
+            answerSignal,
+          },
+        };
+
+        this.sendToGuest(clientId, msgToGuest);
+      }
+    } else {
+      if (msg.type === 'guestOfferSignal') {
+        const msgToHost: SGuestSignalMessage = {
+          type: 'guestOfferSignal',
+          data: {
+            offerSignal: msg.data.offerSignal,
+            clientId,
+          },
+        };
+        this.sendToHost(msgToHost);
+      }
+    }
   }
 
   private sendToGuest(clientId: string, data: ServerMessage) {
@@ -102,33 +102,5 @@ export default class Room {
     }
 
     this.hostSocket.send(data);
-  }
-
-  private handleGuestMessage(clientId: string, msg: ClientMessage) {
-    if (msg.type === 'guestOfferSignal') {
-      const msgToHost: SGuestSignalMessage = {
-        type: 'guestOfferSignal',
-        data: {
-          offerSignal: msg.data.offerSignal,
-          clientId,
-        },
-      };
-      this.sendToHost(msgToHost);
-    }
-  }
-
-  private handleHostMessage(msg: ClientMessage) {
-    if (msg.type === 'hostAnswerSignal') {
-      const { answerSignal, clientId } = msg.data;
-
-      const msgToGuest: SHostSignalMessage = {
-        type: 'hostAnswerSignal',
-        data: {
-          answerSignal,
-        },
-      };
-
-      this.sendToGuest(clientId, msgToGuest);
-    }
   }
 }
